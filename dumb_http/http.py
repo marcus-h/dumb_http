@@ -127,6 +127,19 @@ class ConnectionErrorAwareReadOnlyHTTPResponse(ReadOnlyHTTPResponse):
     def is_connection_error(self):
         return False
 
+    def read(self, count=None):
+        cls = ConnectionErrorAwareReadOnlyHTTPResponse
+        if count is not None:
+            return super(cls, self).read(count)
+        # read everything into a single bytearray
+        buf = bytearray()
+        while True:
+            data = super(cls, self).read(4096)
+            if not data:
+                break
+            buf.extend(data)
+        return bytes(buf)
+
 
 class ConnectionErrorResponse(object):
     def __init__(self, errno, strerror):
@@ -155,7 +168,7 @@ class ConnectionErrorResponse(object):
     def is_connection_error(self):
         return True
 
-    def read(self, count):
+    def read(self, count=None):
         raise ReadError('cannot read from unconnected response')
 
 
