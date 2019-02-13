@@ -33,18 +33,18 @@ class Server(object):
         pass
 
     def _accept(self, sock):
-        child_sock = None
+        client_sock = None
         pid = -1
         try:
-            child_sock, _ = sock.accept()
-            child_sock.set_inheritable(True)
+            client_sock, _ = sock.accept()
+            client_sock.set_inheritable(True)
             pid = os.fork()
             if not pid:
                 # child
-                ret = self.handle_request(child_sock)
+                ret = self.handle_request(client_sock)
         finally:
-            if child_sock is not None:
-                child_sock.close()
+            if client_sock is not None:
+                client_sock.close()
         if not pid:
             # child
             sys.exit(ret)
