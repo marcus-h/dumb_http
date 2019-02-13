@@ -4,10 +4,11 @@ import sys
 
 
 class Server(object):
-    def __init__(self, port, host=''):
+    def __init__(self, port, host='', fork_on_accept=True):
         super(Server, self).__init__()
         self._host = host
         self._port = port
+        self._fork_on_accept = fork_on_accept
 
     def _collect_children(self):
         pid, status = os.waitpid(-1, os.WNOHANG)
@@ -25,7 +26,8 @@ class Server(object):
             sock.listen()
             while True:
                 self._accept(sock)
-                self._collect_children()
+                if self._fork_on_accept:
+                    self._collect_children()
 
     def _daemonize(self):
         # new-style daemon (see man 7 daemon) - though, we will probably
@@ -38,16 +40,16 @@ class Server(object):
         pid = -1
         try:
             client_sock, _ = sock.accept()
-            client_sock.set_inheritable(True)
-            pid = os.fork()
-            if not pid:
-                # child
+            if self._fork_on_accept:
+                client_sock.set_inheritable(True)
+                pid = os.fork()
+            if not pid or not self._fork_on_accept:
                 ret = self.handle_request(client_sock)
         finally:
             if client_sock is not None:
                 client_sock.close()
         if not pid:
-            # child
+            # only called in the child in case of a fork
             sys.exit(ret)
 
     def handle_request(self, sock):
