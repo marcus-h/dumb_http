@@ -5,6 +5,7 @@ import sys
 
 class Server(object):
     def __init__(self, port, host=''):
+        super(Server, self).__init__()
         self._host = host
         self._port = port
 
