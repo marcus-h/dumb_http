@@ -330,8 +330,9 @@ class RouteBinder(object):
 
 
 class RouterBasedHTTPServer(Server):
-    def __init__(self, host, port, router):
-        super(RouterBasedHTTPServer, self).__init__(port, host)
+    def __init__(self, host, port, router, **server_options):
+        super(RouterBasedHTTPServer, self).__init__(port, host,
+                                                    **server_options)
         self._router = router
 
     def handle_request(self, sock):
