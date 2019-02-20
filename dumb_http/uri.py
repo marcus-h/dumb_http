@@ -167,7 +167,7 @@ class Path(**Properties.define(
             path = self._path
             if path:
                 path = path.strip(b'/')
-            if not self._path:
+            if not path:
                 self._components = ()
                 return self._components
             # ok... we have components
