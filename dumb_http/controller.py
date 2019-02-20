@@ -149,6 +149,14 @@ class ControllerBase(object):
     def no_such_route(self):
         self.reply(404, b'no such route\n')
 
+    @classmethod
+    def factory(cls, **create_kwargs):
+        def _create(*args, **kwargs):
+            kwargs.update(create_kwargs)
+            return cls(*args, **kwargs)
+
+        return _create
+
 
 class EncodingAwareController(ControllerBase):
     def __init__(self, rrrw, matches, encoding):
@@ -185,10 +193,6 @@ class EncodingAwareController(ControllerBase):
                                                           **kwargs)
 
     @classmethod
-    def factory(cls, encoding, **create_kwargs):
-        def _create(*args, **kwargs):
-            kwargs['encoding'] = encoding
-            kwargs.update(create_kwargs)
-            return cls(*args, **kwargs)
-
-        return _create
+    def factory(cls, encoding, **kwargs):
+        return super(EncodingAwareController, cls).factory(encoding=encoding,
+                                                           **kwargs)
