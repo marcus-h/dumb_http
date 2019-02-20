@@ -265,20 +265,27 @@ def percent_encode(value, encoding=None):
 
 
 if __name__ == '__main__':
-    #    uri = URI.parse(sys.argv[1].encode('utf-8'))
-    #    print(uri.serialize(percent_encode=True))
-    #    print(URI.parse_path(b'#y'))
-    #    raw_uri = RawURI.parse(sys.argv[1].encode('utf-8'))
-    #    if raw_uri is None:
-    #        sys.exit('parse error')
-    #    print(raw_uri.path)
-    #    uri = PathAndQueryAwareURI(RawURI.parse(sys.argv[1].encode('utf-8')))
-    #    uri = URI.parse(sys.argv[1].encode('utf-8'))
-    #    uri = URI.parse(sys.argv[1], encoding='utf-8')
-    #    if uri is None:
-    #        sys.exit('parse error')
-    #    print(uri.z)
-    #    print(uri.path.components)
-    #    print(uri.query.as_kv)
-    path = URI.parse_path(sys.argv[1], encoding='utf-8')
-    print(path.components)
+    def _print_uri(uri, name):
+        print("{} scheme:".format(name), uri.scheme)
+        print("{} host:".format(name), uri.host)
+        print("{} path:".format(name), uri.path.components)
+        print("{} query:".format(name), uri.query.as_kv)
+
+    if len(sys.argv) != 2:
+        print("usage: {} <uri>".format(sys.argv[0]), file=sys.stderr)
+        sys.exit(1)
+    uri_str = sys.argv[1]
+    uri_from_str = URI.parse(uri_str, encoding='utf-8')
+    if uri_from_str is None:
+        print("unable to parse uri: {}".format(uri_str))
+        sys.exit(1)
+    _print_uri(uri_from_str, 'uri_from_str')
+    print()
+
+    uri_bytes = uri_str.encode('utf-8')
+    uri_from_bytes = URI.parse(uri_bytes, encoding='utf-8')
+    _print_uri(uri_from_bytes, 'uri_from_bytes')
+    print()
+
+    uri_no_enc = URI.parse(uri_bytes)
+    _print_uri(uri_no_enc, 'uri_no_enc')
