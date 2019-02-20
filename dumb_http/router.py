@@ -3,7 +3,7 @@ import re
 from dumb_http.http import RequestReaderResponseWriter
 from dumb_http.server import Server
 from dumb_http.uri import URI
-from dumb_http.util import Properties
+from dumb_http.util import Properties, to_bytes
 
 
 # some of these class names (and maybe parts of the implementation?) are
@@ -78,65 +78,63 @@ class AbstractMatcherBase(object):
         self._encoding = encoding
         self._percent_decode = percent_decode
 
+    def _to_bytes(self, value):
+        return to_bytes(value, self._encoding)
+
+    def _decode_or_keep(self, value):
+        if self._encoding is not None:
+            value = value.decode(self._encoding)
+        return value
+
     def matches(self, request, diagnostic):
         raise NotImplementedError()
 
 
-# XXX: security, security, security
-# doing a regex match on bytes could be dangerous if encodings mismatch!
-# (e.g., regex represents an utf-8 encoding and the request was encoded
-# (by the client) as latin-1 => the regex could match, but if the application
-# decodes the latin-1 str via a latin-1 decoding, the application might end
-# up with an "illegal" (wrt. the regex) str.
-# TODO: support str matcher
-# XXX: see also the comment in controller.route
 class RegexPathMatcher(AbstractMatcherBase):
     def __init__(self, method_description, path_description,
                  no_match_value=None, encoding=None, percent_decode=True):
-        super(RegexPathMatcher, self).__init__(percent_decode=percent_decode)
+        super(RegexPathMatcher, self).__init__(encoding, percent_decode)
         self._no_match_value = no_match_value
-        self._method_re = self._build_method_regex(method_description,
-                                                   encoding)
+        self._method_re = self._build_method_regex(method_description)
         path_descr = path_description
-        self._component_regexes = self._build_component_regexes(path_descr,
-                                                                encoding)
+        self._component_regexes = self._build_component_regexes(path_descr)
 
-    def _build_method_regex(self, method_description, encoding):
-        if encoding is not None:
-            method_description = method_description.encode(encoding)
+    def _build_method_regex(self, method_description):
+        method_description = self._to_bytes(method_description)
         method_description = b'^' + method_description + b'$'
+        method_description = self._decode_or_keep(method_description)
         return re.compile(method_description)
 
-    def _build_component_regexes(self, path_description, encoding):
+    def _build_component_regexes(self, path_description):
         component_regexes = []
         for component in path_description.components:
-            component_re = self._build_component_regex(component, encoding)
+            component_re = self._build_component_regex(component)
             component_regexes.append(component_re)
         return component_regexes
 
     named_component_re = re.compile(b'^(?P<named_part><[^>]+>)')
 
-    def _build_component_regex(self, component, encoding):
-        if encoding is not None:
-            component = component.encode(encoding)
+    def _build_component_regex(self, component):
+        component = self._to_bytes(component)
         mo = self.named_component_re.search(component)
         if mo is not None:
             if mo.group('named_part') == component:
                 component += b'.+'
             component = b'(?P' + component + b')'
         component = b'^' + component + b'$'
+        component = self._decode_or_keep(component)
         return re.compile(component)
 
     def matches(self, request, diagnostic):
-        # request._request_target is bytes, hence, no need to pass an encoding
-        # parameter to URI.parse_path
-        path = URI.parse_path(request._request_target,
+        path = URI.parse_path(request._request_target, encoding=self._encoding,
                               percent_decode=self._percent_decode)
         if path is None:
             raise ValueError('illegal path')
         if len(self._component_regexes) != len(path.components):
             return None
-        mo = self._method_re.search(request._method)
+        # request._method is a bytes
+        method = self._decode_or_keep(request._method)
+        mo = self._method_re.search(method)
         if mo is None:
             return None
         matches = []
@@ -145,8 +143,9 @@ class RegexPathMatcher(AbstractMatcherBase):
             mo = comp_re.search(comp)
             if mo is None:
                 if diagnostic is not None:
-                    msg = b"comp '%s' does not match '%s'" % (comp,
-                                                              comp_re.pattern)
+                    comp = self._to_bytes(comp)
+                    pattern = self._to_bytes(comp_re.pattern)
+                    msg = b"comp '%s' does not match '%s'" % (comp, pattern)
                     diagnostic.error(self, msg)
                 return None
             matches.append(comp)
@@ -157,28 +156,25 @@ class RegexPathMatcher(AbstractMatcherBase):
 class RegexQueryMatcher(AbstractMatcherBase):
     def __init__(self, query_description, defs_required=True,
                  only_defined=True, encoding=None, percent_decode=True):
-        super(RegexQueryMatcher, self).__init__(percent_decode=percent_decode)
+        super(RegexQueryMatcher, self).__init__(encoding, percent_decode)
         self._defs_required = defs_required
         self._only_defined = only_defined
-        self._query_regexes = self._build_query_regexes(query_description,
-                                                        encoding,
-                                                        percent_decode)
+        self._query_regexes = self._build_query_regexes(query_description)
 
-    def _build_query_regexes(self, query_description, encoding,
-                             percent_decode):
+    def _build_query_regexes(self, query_description):
         query_regexes = []
         for key, value in query_description.as_kv.items():
-            key_re, value_re = self._build_key_value_regexes(key, value,
-                                                             encoding)
+            key_re, value_re = self._build_key_value_regexes(key, value)
             query_regexes.append((key_re, value_re))
         return query_regexes
 
-    def _build_key_value_regexes(self, key, value, encoding):
-        if encoding is not None:
-            key = key.encode(encoding)
-            value = value.encode(encoding)
+    def _build_key_value_regexes(self, key, value):
+        key = self._to_bytes(key)
+        value = self._to_bytes(value)
         key = b'^' + key + b'$'
         value = b'^' + value + b'$'
+        key = self._decode_or_keep(key)
+        value = self._decode_or_keep(value)
         return re.compile(key), re.compile(value)
 
     def _match(self, key_re, value_re, key, value):
@@ -202,8 +198,10 @@ class RegexQueryMatcher(AbstractMatcherBase):
                     break
             if not def_found:
                 if diagnostic is not None:
+                    key_pattern = self._to_bytes(key_re.pattern)
+                    value_pattern = self._to_bytes(value_re.pattern)
                     msg = b"Missing query parameter: key: '%s', val: '%s'" % (
-                                key_re.pattern, value_re.pattern)
+                                key_pattern, value_pattern)
                     diagnostic.error(self, msg)
                 return False
         return True
@@ -223,6 +221,8 @@ class RegexQueryMatcher(AbstractMatcherBase):
                     break
             if not act_found:
                 if diagnostic:
+                    key = self._to_bytes(key)
+                    value = self._to_bytes(value)
                     msg = b"Unexpected query parameter: '%s'='%s'" % (key,
                                                                       value)
                     diagnostic.error(self, msg)
@@ -230,8 +230,8 @@ class RegexQueryMatcher(AbstractMatcherBase):
         return True
 
     def matches(self, request, diagnostic):
-        # no need to care about an encoding (see RegexPathMatcher.matches)
         query = URI.parse_query(request._request_target,
+                                encoding=self._encoding,
                                 percent_decode=self._percent_decode)
         if query is None:
             raise ValueError('illegal query')

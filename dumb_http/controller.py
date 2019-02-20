@@ -92,15 +92,6 @@ class ControllerRouteBinder(RouteBinder):
 # encoding and str is more convenient for now
 def route(method_description, path_query_fragment_description,
           encoding='ascii'):
-    if encoding and encoding != 'ascii':
-        # XXX: blindly encoding a non-ascii regex is dangerous!
-        # For instance, consider '[\xff\xfe]{2}' => via utf-8 encoding
-        # b'[\xc3\xbf\xc3\xbe]{2}' => broken regex!
-        # ascii is "safe" if the application only does ascii decodings (if
-        # it decodes at all)
-        # See also comment in router
-        msg = 'non-ascii encoding not supported due to security reasons'
-        raise ValueError(msg)
     matchers = []
     path = URI.parse_path(path_query_fragment_description, encoding=encoding)
     # for now a path must be present
