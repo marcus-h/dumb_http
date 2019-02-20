@@ -6,6 +6,11 @@ from dumb_http.uri import URI
 from dumb_http.util import Properties
 
 
+# some of these class names (and maybe parts of the implementation?) are
+# inspired by rails' actionpack (more precisely, action_dispatch). However,
+# some ideas, like the RegexQueryMatcher, are "novel"...
+
+
 class Route(object):
     def __init__(self, *matchers):
         super(Route, self).__init__()
