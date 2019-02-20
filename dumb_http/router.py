@@ -73,10 +73,12 @@ class MatchDiagnostic(object):
 
 
 class AbstractMatcherBase(object):
-    def __init__(self, encoding=None, percent_decode=True):
+    def __init__(self, encoding=None, percent_decode=True,
+                 no_match_value=None):
         super(AbstractMatcherBase, self).__init__()
         self._encoding = encoding
         self._percent_decode = percent_decode
+        self._no_match_value = no_match_value
 
     def _to_bytes(self, value):
         return to_bytes(value, self._encoding)
@@ -92,9 +94,9 @@ class AbstractMatcherBase(object):
 
 class RegexPathMatcher(AbstractMatcherBase):
     def __init__(self, method_description, path_description,
-                 no_match_value=None, encoding=None, percent_decode=True):
-        super(RegexPathMatcher, self).__init__(encoding, percent_decode)
-        self._no_match_value = no_match_value
+                 encoding=None, percent_decode=True, no_match_value=None):
+        super(RegexPathMatcher, self).__init__(encoding, percent_decode,
+                                               no_match_value)
         self._method_re = self._build_method_regex(method_description)
         path_descr = path_description
         self._component_regexes = self._build_component_regexes(path_descr)
@@ -154,13 +156,15 @@ class RegexPathMatcher(AbstractMatcherBase):
 
 
 class QueryRegex(**Properties.define(
-        'is_optional', 'key_pattern', 'value_pattern'
-    )):
-    def __init__(self, key_pattern, value_pattern, to_bytes, decode_or_keep):
+            'is_optional', 'key_pattern', 'value_pattern'
+        )):
+    def __init__(self, key_pattern, value_pattern, no_match_value, to_bytes,
+                 decode_or_keep):
         super(QueryRegex, self).__init__()
         data = self._build_regexes(key_pattern, value_pattern, to_bytes,
                                    decode_or_keep)
         self._key_re, self._value_re, self._is_optional = data
+        self._no_match_value = no_match_value
 
     def _prop_key_pattern_get(self):
         return self._key_re.pattern
@@ -176,7 +180,7 @@ class QueryRegex(**Properties.define(
         value_pattern = to_bytes(value_pattern)
         mo = self.optional_re.search(key_pattern)
         if mo is not None:
-            key = mo.group('key_pattern')
+            key_pattern = mo.group('key_pattern')
         key_pattern = b'^' + key_pattern + b'$'
         value_pattern = b'^' + value_pattern + b'$'
         key_pattern = decode_or_keep(key_pattern)
@@ -187,17 +191,21 @@ class QueryRegex(**Properties.define(
     def match(self, key, value):
         mo_key = self._key_re.search(key)
         if mo_key is None:
-            return False
+            return (False, {}, {})
         mo_value = self._value_re.search(value)
         if mo_value is None:
-            return False
-        return True
+            return (False, {}, {})
+        no_match_value = self._no_match_value
+        return (True, mo_key.groupdict(no_match_value),
+                mo_value.groupdict(no_match_value))
 
 
 class RegexQueryMatcher(AbstractMatcherBase):
     def __init__(self, query_description, defs_required=True,
-                 only_defined=True, encoding=None, percent_decode=True):
-        super(RegexQueryMatcher, self).__init__(encoding, percent_decode)
+                 only_defined=True, encoding=None, percent_decode=True,
+                 no_match_value=None):
+        super(RegexQueryMatcher, self).__init__(encoding, percent_decode,
+                                                no_match_value)
         self._defs_required = defs_required
         self._only_defined = only_defined
         self._query_regexes = self._build_query_regexes(query_description)
@@ -206,7 +214,8 @@ class RegexQueryMatcher(AbstractMatcherBase):
         query_regexes = []
         for key_pattern, value_pattern in query_description.as_kv.items():
             query_regex = QueryRegex(key_pattern, value_pattern,
-                                     self._to_bytes, self._decode_or_keep)
+                                     self._no_match_value, self._to_bytes,
+                                     self._decode_or_keep)
             query_regexes.append(query_regex)
         return query_regexes
 
@@ -216,8 +225,11 @@ class RegexQueryMatcher(AbstractMatcherBase):
         for query_regex in self._query_regexes:
             def_found = False
             for key, value in query.as_kv.items():
-                if query_regex.match(key, value):
+                is_match, key_nm, value_nm = query_regex.match(key, value)
+                if is_match:
                     named_matches[key] = value
+                    named_matches.update(key_nm)
+                    named_matches.update(value_nm)
                     def_found = True
                     break
             if not def_found and not query_regex.is_optional:
@@ -239,8 +251,11 @@ class RegexQueryMatcher(AbstractMatcherBase):
                 continue
             act_found = False
             for query_regex in self._query_regexes:
-                if query_regex.match(key, value):
+                is_match, key_nm, value_nm = query_regex.match(key, value)
+                if is_match:
                     named_matches[key] = value
+                    named_matches.update(key_nm)
+                    named_matches.update(value_nm)
                     act_found = True
                     break
             if not act_found:
