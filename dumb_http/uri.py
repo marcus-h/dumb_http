@@ -86,7 +86,7 @@ class DecodingAwareURI(**Properties.define(
     def decode_value(self, value, percent_decode=None, decode=None,
                      encoding=None):
         # print(decode, self._decode, self.raw_uri._encoding)
-        if not value:
+        if value is None:
             return value
         if percent_decode is None:
             percent_decode = self._percent_decode
