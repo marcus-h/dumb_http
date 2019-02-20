@@ -3,6 +3,12 @@ def int_to_bytes(num):
     return str(num).encode('ascii')
 
 
+def to_bytes(value, encoding):
+    if not isinstance(value, bytes):
+        value = value.encode(encoding)
+    return value
+
+
 #
 # property accessor stuff
 #
