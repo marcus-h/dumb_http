@@ -153,6 +153,47 @@ class RegexPathMatcher(AbstractMatcherBase):
         return MatchResult(matches, named_matches)
 
 
+class QueryRegex(**Properties.define(
+        'is_optional', 'key_pattern', 'value_pattern'
+    )):
+    def __init__(self, key_pattern, value_pattern, to_bytes, decode_or_keep):
+        super(QueryRegex, self).__init__()
+        data = self._build_regexes(key_pattern, value_pattern, to_bytes,
+                                   decode_or_keep)
+        self._key_re, self._value_re, self._is_optional = data
+
+    def _prop_key_pattern_get(self):
+        return self._key_re.pattern
+
+    def _prop_value_pattern_get(self):
+        return self._value_re.pattern
+
+    optional_re = re.compile(rb'^\((?P<key_pattern>.+)\)\?$')
+
+    def _build_regexes(self, key_pattern, value_pattern, to_bytes,
+                       decode_or_keep):
+        key_pattern = to_bytes(key_pattern)
+        value_pattern = to_bytes(value_pattern)
+        mo = self.optional_re.search(key_pattern)
+        if mo is not None:
+            key = mo.group('key_pattern')
+        key_pattern = b'^' + key_pattern + b'$'
+        value_pattern = b'^' + value_pattern + b'$'
+        key_pattern = decode_or_keep(key_pattern)
+        value_pattern = decode_or_keep(value_pattern)
+        return (re.compile(key_pattern), re.compile(value_pattern),
+                mo is not None)
+
+    def match(self, key, value):
+        mo_key = self._key_re.search(key)
+        if mo_key is None:
+            return False
+        mo_value = self._value_re.search(value)
+        if mo_value is None:
+            return False
+        return True
+
+
 class RegexQueryMatcher(AbstractMatcherBase):
     def __init__(self, query_description, defs_required=True,
                  only_defined=True, encoding=None, percent_decode=True):
@@ -163,43 +204,26 @@ class RegexQueryMatcher(AbstractMatcherBase):
 
     def _build_query_regexes(self, query_description):
         query_regexes = []
-        for key, value in query_description.as_kv.items():
-            key_re, value_re = self._build_key_value_regexes(key, value)
-            query_regexes.append((key_re, value_re))
+        for key_pattern, value_pattern in query_description.as_kv.items():
+            query_regex = QueryRegex(key_pattern, value_pattern,
+                                     self._to_bytes, self._decode_or_keep)
+            query_regexes.append(query_regex)
         return query_regexes
-
-    def _build_key_value_regexes(self, key, value):
-        key = self._to_bytes(key)
-        value = self._to_bytes(value)
-        key = b'^' + key + b'$'
-        value = b'^' + value + b'$'
-        key = self._decode_or_keep(key)
-        value = self._decode_or_keep(value)
-        return re.compile(key), re.compile(value)
-
-    def _match(self, key_re, value_re, key, value):
-        mo_key = key_re.search(key)
-        if mo_key is None:
-            return False
-        mo_value = value_re.search(value)
-        if mo_value is None:
-            return False
-        return True
 
     def _match_defined(self, query, named_matches, diagnostic):
         if not self._defs_required:
             return True
-        for key_re, value_re in self._query_regexes:
+        for query_regex in self._query_regexes:
             def_found = False
             for key, value in query.as_kv.items():
-                if self._match(key_re, value_re, key, value):
+                if query_regex.match(key, value):
                     named_matches[key] = value
                     def_found = True
                     break
-            if not def_found:
+            if not def_found and not query_regex.is_optional:
                 if diagnostic is not None:
-                    key_pattern = self._to_bytes(key_re.pattern)
-                    value_pattern = self._to_bytes(value_re.pattern)
+                    key_pattern = self._to_bytes(query_regex.key_pattern)
+                    value_pattern = self._to_bytes(query_regex.value_pattern)
                     msg = b"Missing query parameter: key: '%s', val: '%s'" % (
                                 key_pattern, value_pattern)
                     diagnostic.error(self, msg)
@@ -214,8 +238,8 @@ class RegexQueryMatcher(AbstractMatcherBase):
                 # already matched by _match_defined
                 continue
             act_found = False
-            for key_re, value_re in self._query_regexes:
-                if self._match(key_re, value_re, key, value):
+            for query_regex in self._query_regexes:
+                if query_regex.match(key, value):
                     named_matches[key] = value
                     act_found = True
                     break
