@@ -94,7 +94,8 @@ class DecodingAwareURI(**Properties.define(
         if encoding is None:
             encoding = self.raw_uri._encoding
         if percent_decode:
-            value = self.percent_decode(value, encoding)
+            # note: passing encoding to self.percent_decode would be wrong
+            value = self.percent_decode(value)
         if decode and encoding is not None:
             value = value.decode(encoding)
         return value
@@ -102,12 +103,10 @@ class DecodingAwareURI(**Properties.define(
     percent_decode_re = re.compile(b'%(?P<hex>[0-9a-fA-F]{2})')
 
     @classmethod
-    def percent_decode(cls, value, encoding=None):
+    def percent_decode(cls, value, encoding='ISO-8859-1'):
         def hex_to_byte(mo):
             return chr(int(mo.group('hex'), 16)).encode(encoding)
 
-        if encoding is None:
-            encoding = 'ascii'
         return cls.percent_decode_re.sub(hex_to_byte, value)
 
     # just for the properties (cannot be called on an instance!)
@@ -255,12 +254,10 @@ class URI(PathAndQueryAwareURI):
 percent_encode_re = re.compile(br'(?P<reserved>[:/?#[\]@!$&\'()*+,;=])')
 
 
-def percent_encode(value, encoding=None):
+def percent_encode(value, encoding='ISO-8859-1'):
     def res_byte_to_hex(mo):
         return "%{:02X}".format(ord(mo.group('reserved'))).encode(encoding)
 
-    if encoding is None:
-        encoding = 'ascii'
     return percent_encode_re.sub(res_byte_to_hex, value)
 
 
