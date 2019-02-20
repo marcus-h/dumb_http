@@ -75,6 +75,7 @@ class MatchDiagnostic(object):
 class AbstractMatcherBase(object):
     def __init__(self, encoding=None, percent_decode=True):
         super(AbstractMatcherBase, self).__init__()
+        self._encoding = encoding
         self._percent_decode = percent_decode
 
     def matches(self, request, diagnostic):
@@ -92,7 +93,7 @@ class AbstractMatcherBase(object):
 class RegexPathMatcher(AbstractMatcherBase):
     def __init__(self, method_description, path_description,
                  no_match_value=None, encoding=None, percent_decode=True):
-        super(RegexPathMatcher, self).__init__(percent_decode)
+        super(RegexPathMatcher, self).__init__(percent_decode=percent_decode)
         self._no_match_value = no_match_value
         self._method_re = self._build_method_regex(method_description,
                                                    encoding)
@@ -156,7 +157,7 @@ class RegexPathMatcher(AbstractMatcherBase):
 class RegexQueryMatcher(AbstractMatcherBase):
     def __init__(self, query_description, defs_required=True,
                  only_defined=True, encoding=None, percent_decode=True):
-        super(RegexQueryMatcher, self).__init__(percent_decode)
+        super(RegexQueryMatcher, self).__init__(percent_decode=percent_decode)
         self._defs_required = defs_required
         self._only_defined = only_defined
         self._query_regexes = self._build_query_regexes(query_description,
