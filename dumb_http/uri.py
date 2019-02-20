@@ -6,7 +6,7 @@ Note: only URIs with an authority part are supported.
 import re
 import sys
 
-from dumb_http.util import Properties
+from dumb_http.util import Properties, to_bytes
 
 
 uri_properties = ('scheme', 'authority', 'userinfo', 'host', 'port', 'path',
@@ -57,8 +57,7 @@ class RawURI(**Properties.define(*uri_properties)):
 
     @classmethod
     def _parse_value(cls, parse_re, value, encoding, empty_value):
-        if encoding is not None:
-            value = value.encode(encoding)
+        value = to_bytes(value, encoding)
         mo = parse_re.search(value)
         if mo is None:
             return None
@@ -227,12 +226,8 @@ class URI(PathAndQueryAwareURI):
     @classmethod
     def _parse_path_query_fragment(cls, path_query_fragment, encoding=None,
                                    percent_decode=True, empty_value=None):
-        if encoding is not None:
-            path_query_fragment = path_query_fragment.encode(encoding)
+        path_query_fragment = to_bytes(path_query_fragment, encoding)
         uri = b'http://localhost/' + path_query_fragment
-        if encoding is not None:
-            # uarghs
-            uri = uri.decode(encoding)
         uri = cls.parse(uri, encoding=encoding, empty_value=empty_value)
         if uri is None:
             return (None, None, None)
