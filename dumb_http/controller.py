@@ -87,11 +87,11 @@ class ControllerRouteBinder(RouteBinder):
         return super(ControllerRouteBinder, self).to(resource)
 
 
-# using an ascii encoding by default is a bit inconsistent with the rest of
+# using an utf-8 encoding by default is a bit inconsistent with the rest of
 # this module (usually everything is bytes by default) - but using a default
 # encoding and str is more convenient for now
 def route(method_description, path_query_fragment_description,
-          encoding='ascii'):
+          encoding='utf-8'):
     matchers = []
     path = URI.parse_path(path_query_fragment_description, encoding=encoding)
     # for now a path must be present
