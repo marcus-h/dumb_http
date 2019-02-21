@@ -19,7 +19,10 @@ class Route(object):
     def matches(self, request, diagnostic=None):
         match_results = []
         for matcher in self._matchers:
-            match_result = matcher.matches(request, diagnostic)
+            try:
+                match_result = matcher.matches(request, diagnostic)
+            except UnicodeDecodeError:
+                match_result = None
             if match_result is None:
                 return None
             match_results.append(match_result)
