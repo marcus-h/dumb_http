@@ -163,29 +163,6 @@ class EncodingAwareController(ControllerBase):
         self._encoding = encoding  # do this first
         super(EncodingAwareController, self).__init__(rrrw, matches)
 
-    def _accumulate_named_matches(self, *args, **kwargs):
-        named_matches = super(EncodingAwareController,
-                              self)._accumulate_named_matches()
-        res = {}
-        for key, value in named_matches.items():
-            key = self._decode(key, True)
-            value = self._decode(value, False)
-            res[key] = value
-        return res
-
-    def _decode(self, key_or_value, is_key):
-        # subclasses might do more clever things here...
-        if hasattr(key_or_value, 'decode'):
-            try:
-                key_or_value = key_or_value.decode(self._encoding)
-            except ValueError as e:
-                kv = str(key_or_value)
-                enc = self._encoding
-                msg = "Unable to decode {} using {} encoding".format(kv, enc)
-                self.reply(400, msg)
-                raise e
-        return key_or_value
-
     def reply(self, status=None, data=None, *args, **kwargs):
         if hasattr(data, 'encode'):
             data = data.encode(self._encoding)
