@@ -37,6 +37,13 @@ A route consists of a request method, a path and a query description.
 The request method, path and query descriptions are specified in a
 regex-like DSL. A route is bound to a controller method.
 
+Note: due to the use of regexes some of the route specifications below
+might look a bit "complex". However, the advantage (IMHO) is that
+most/some of the input validations are done behind the scenes resulting
+in a clean and concise controller code (that is, the controller code
+only focuses on/implements the logic and does not care about the input
+validations).
+
 
 #
 # Step 3: Start the server
