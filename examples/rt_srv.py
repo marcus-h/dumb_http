@@ -53,7 +53,9 @@ the run() method.
 """
 
 import os
+import time
 
+from dumb_http.server import Periodic
 from dumb_http.router import RouterBasedHTTPServer, Router
 from dumb_http.controller import EncodingAwareController, ControllerBase, route
 
@@ -186,9 +188,44 @@ ROUTER = Router(
 )
 
 
+class PeriodicHandler1(object):
+    def __init__(self):
+        super(PeriodicHandler1, self).__init__()
+        self._last = self._now()
+
+    def _now(self):
+        return int(time.time())
+
+    def __call__(self):
+        # actual handler code
+        now = self._now()
+        diff = now - self._last
+        self._last = now
+        msg = "PeriodicHandler1 called (last call: {} seconds ago)".format(
+                diff)
+        print(msg)
+
+
+def periodic_handler2():
+    if not hasattr(periodic_handler2, 'count'):
+        periodic_handler2.count = 10
+    msg = "periodic_handler2 count: {}".format(periodic_handler2.count)
+    print(msg)
+    periodic_handler2.count -= 1
+    if periodic_handler2.count == 5:
+        # every 2 seconds
+        return 2
+    elif not periodic_handler2.count:
+        # will be never called again
+        return Periodic.REMOVE
+
+
 if __name__ == '__main__':
     #
     # Step 3: Start the server
     #
-    rt_srv = RouterBasedHTTPServer('localhost', 3000, ROUTER)
+    periodics = [Periodic(30, PeriodicHandler1()),
+                 Periodic(10, periodic_handler2)]
+    rt_srv = RouterBasedHTTPServer('localhost', 3000, ROUTER,
+                                   periodics=periodics)
     rt_srv.run()
