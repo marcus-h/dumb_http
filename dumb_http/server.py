@@ -44,7 +44,6 @@ class Server(object):
         try:
             client_sock, _ = sock.accept()
             if self._fork_on_accept:
-                client_sock.set_inheritable(True)
                 pid = os.fork()
             if not pid or not self._fork_on_accept:
                 ret = self.handle_request(client_sock)
