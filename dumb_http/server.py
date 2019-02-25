@@ -21,9 +21,7 @@ class Server(object):
         self._daemonize()
         kwargs = {'family': socket.AF_INET, 'type': socket.SOCK_STREAM}
         with socket.socket(**kwargs) as sock:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind((self._host, self._port))
-            sock.listen()
+            self._configure_server_socket(sock)
             while True:
                 self._accept(sock)
                 if self._fork_on_accept:
@@ -34,6 +32,11 @@ class Server(object):
         # do privileges dropping here (better safe than sorry...) (take
         # also docker/container stuff into account)
         pass
+
+    def _configure_server_socket(self, sock):
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((self._host, self._port))
+        sock.listen()
 
     def _accept(self, sock):
         client_sock = None
