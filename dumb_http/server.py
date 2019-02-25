@@ -1,6 +1,7 @@
 import os
 import socket
 import sys
+import errno
 
 
 class Server(object):
@@ -11,10 +12,14 @@ class Server(object):
         self._fork_on_accept = fork_on_accept
 
     def _collect_children(self):
-        pid, status = os.waitpid(-1, os.WNOHANG)
-        while pid != 0 or status != 0:
-            print('master', pid, 'exited with status:', status)
+        try:
             pid, status = os.waitpid(-1, os.WNOHANG)
+            while pid != 0 or status != 0:
+                print('master', pid, 'exited with status:', status)
+                pid, status = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError as e:
+            if e.errno != errno.ECHILD:
+                raise
 
     def run(self):
         # hmm too lazy to do a proper daemonize...
