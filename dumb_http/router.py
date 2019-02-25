@@ -1,7 +1,7 @@
 import re
 
 from dumb_http.http import RequestReaderResponseWriter
-from dumb_http.server import Server
+from dumb_http.server import PeriodicServer
 from dumb_http.uri import URI
 from dumb_http.util import Properties, to_bytes
 
@@ -377,7 +377,7 @@ class RouteBinder(object):
         return self._route.matches(request, diagnostic)
 
 
-class RouterBasedHTTPServer(Server):
+class RouterBasedHTTPServer(PeriodicServer):
     def __init__(self, host, port, router, **server_options):
         super(RouterBasedHTTPServer, self).__init__(port, host,
                                                     **server_options)
