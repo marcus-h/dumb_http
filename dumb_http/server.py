@@ -23,6 +23,12 @@ class Server(object):
             if e.errno != errno.ECHILD:
                 raise
 
+    def _has_pending_connection(self, sock):
+        # just pretend to have a pending connection (the accept will
+        # block until there really is a pending connection) - subclasses can
+        # do more clever things here
+        return True
+
     def run(self):
         # hmm too lazy to do a proper daemonize...
         self._daemonize()
@@ -30,7 +36,8 @@ class Server(object):
         with socket.socket(**kwargs) as sock:
             self._configure_server_socket(sock)
             while True:
-                self._accept(sock)
+                if self._has_pending_connection(sock):
+                    self._accept(sock)
                 if self._fork_on_accept:
                     self._collect_children()
 
@@ -74,14 +81,17 @@ class SelectServer(Server):
     def _calc_timeout(self):
         return self._timeout
 
-    def _accept(self, sock):
-        read, _, _ = select.select((sock, ), (), (), self._calc_timeout())
-        if read:
-            super(SelectServer, self)._accept(sock)
-        else:
-            self._handle_timeout(sock)
+    def _select_lists(self, sock):
+        return (sock, ), (), ()
 
-    def _handle_timeout(self, sock):
+    def _has_pending_connection(self, sock):
+        timeout = self._calc_timeout()
+        select_lists = self._select_lists(sock)
+        read, write, exc = select.select(*select_lists, timeout)
+        self._post_select(read, write, exc)
+        return sock in read
+
+    def _post_select(self, read, write, exc):
         pass
 
 
@@ -159,8 +169,8 @@ class PeriodicServer(SelectServer):
                 timeout = remaining
         return timeout
 
-    def _handle_timeout(self, sock):
-        super(PeriodicServer, self)._handle_timeout(sock)
+    def _post_select(self, read, write, exc):
+        super(PeriodicServer, self)._post_select(read, write, exc)
         periodics = self._periodics
         new_periodics = []
         while periodics:
