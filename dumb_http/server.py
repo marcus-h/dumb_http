@@ -148,7 +148,9 @@ class PeriodicServer(SelectServer):
     too long and must not throw an exception. If one of these conditions
     is not fulfilled, the handler should fork a new process and execute
     the actual code in the child. The server will reap the child later
-    (see Server._collect_children).
+    (see Server._collect_children), if its fork_on_accept parameter is set
+    to True. If fork_on_accept is False, just add an additional periodic
+    that does a (non-blocking) os.waitpid.
     """
 
     def __init__(self, port, host='', *args, periodics=None, **kwargs):
