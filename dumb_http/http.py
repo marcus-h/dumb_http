@@ -173,10 +173,10 @@ class ConnectionErrorResponse(object):
 
 
 def _perform(method, host, path, data, port, headers, query, encoding):
-    def encode(data):
-        if encoding is not None and hasattr(data, 'encode'):
-            return data.encode(encoding)
-        return data
+    def encode(_data):
+        if encoding is not None and hasattr(_data, 'encode'):
+            return _data.encode(encoding)
+        return _data
 
     host = encode(host)
     path = encode(path)
