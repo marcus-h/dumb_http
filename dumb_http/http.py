@@ -128,13 +128,12 @@ class ConnectionErrorAwareReadOnlyHTTPResponse(ReadOnlyHTTPResponse):
         return False
 
     def read(self, count=None):
-        cls = ConnectionErrorAwareReadOnlyHTTPResponse
         if count is not None:
-            return super(cls, self).read(count)
+            return super(self.__class__, self).read(count)
         # read everything into a single bytearray
         buf = bytearray()
         while True:
-            data = super(cls, self).read(4096)
+            data = super(self.__class__, self).read(4096)
             if not data:
                 break
             buf.extend(data)
