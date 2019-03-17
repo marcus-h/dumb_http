@@ -104,14 +104,17 @@ class Request(object):
             req.add_header('Host', host)
         if req.get_header('Connection', None) is None:
             req.add_header('Connection', b'close')
+        sio = None
         try:
             sio = self._connect(host, port)
+            data = _prepare_data_message(req, data)
+            req.write_body(sio, data)
         except ConnectionError as e:
+            if sio is not None:
+                sio.close()
             if not self._suppress_connect_error:
                 raise
             return ConnectionErrorResponse(e.errno, e.strerror)
-        data = _prepare_data_message(req, data)
-        req.write_body(sio, data)
         kwargs = {'dup_headers_use_last': self._dup_headers_use_last}
         return ConnectionErrorAwareReadOnlyHTTPResponse(sio, **kwargs)
 
