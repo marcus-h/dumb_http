@@ -115,7 +115,8 @@ class Request(object):
             if not self._suppress_connect_error:
                 raise
             return ConnectionErrorResponse(e.errno, e.strerror)
-        kwargs = {'dup_headers_use_last': self._dup_headers_use_last}
+        kwargs = {'dup_headers_use_last': self._dup_headers_use_last,
+                  'suppress_connect_error': self._suppress_connect_error}
         return ConnectionErrorAwareReadOnlyHTTPResponse(sio, **kwargs)
 
     def get(self, host, path, data=None, port=80, query=None):
@@ -127,8 +128,30 @@ class Request(object):
 
 # uff... what a name
 class ConnectionErrorAwareReadOnlyHTTPResponse(ReadOnlyHTTPResponse):
+    def __init__(self, *args, suppress_connect_error=False, **kwargs):
+        super(ConnectionErrorAwareReadOnlyHTTPResponse, self).__init__(
+            *args, **kwargs
+        )
+        self._suppress_connect_error = suppress_connect_error
+        self.errno = None
+        self.strerror = None
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        ret = super(ConnectionErrorAwareReadOnlyHTTPResponse, self).__exit__(
+            exc_type, exc_value, traceback
+        )
+        if (exc_type is None or not self._suppress_connect_error
+                or not issubclass(exc_type, (ConnectionError, ReadError))):
+            return ret
+        if issubclass(exc_type, ConnectionError):
+            self.errno = exc_value.errno
+            self.strerror = exc_value.strerror
+        else:
+            self.strerror = exc_value.msg
+        return True
+
     def is_connection_error(self):
-        return False
+        return self.strerror is not None
 
     def read(self, count=None):
         if count is not None:
