@@ -12,11 +12,12 @@ class ChunkedReader(DelimitedReader):
         self._chunk_size = 0
         self._last_chunk_read = False
 
-    def _read(self, count):
-        return super(ChunkedReader, self).read(count)
+    def _read(self, count, *args, **kwargs):
+        return super(ChunkedReader, self).read(count, *args, **kwargs)
 
-    def _read_chunk_line(self, max_chunk_line_bytes):
-        line = self.read_until(b'\r\n', max_bytes=max_chunk_line_bytes)
+    def _read_chunk_line(self, max_chunk_line_bytes, *args, **kwargs):
+        line = self.read_until(b'\r\n', max_bytes=max_chunk_line_bytes, *args,
+                               **kwargs)
         if not line:
             raise ProtocolError('empty chunk line', line)
         mo = self.chunk_size_re.search(line)
@@ -31,28 +32,31 @@ class ChunkedReader(DelimitedReader):
             raise ProtocolError('maybe protocol error (?)', line)
         return chunk_size, chunk_size == 0
 
-    def _read_trailer(self, max_trailer_line_bytes):
+    def _read_trailer(self, max_trailer_line_bytes, *args, **kwargs):
         # we ignore all trailer parts (XXX: protocol violation!)
         max_bytes = max_trailer_line_bytes
         while True:
-            data = self.read_until(b'\r\n', max_bytes=max_bytes)
+            data = self.read_until(b'\r\n', max_bytes=max_bytes, *args,
+                                   **kwargs)
             if not data:
                 break
 
-    def read(self, count, max_chunk_line_bytes=104857):
+    def read(self, count, max_chunk_line_bytes=104857, *args, **kwargs):
         if self._last_chunk_read:
             # the caller already saw eof (hmm really an exception or b''?)
             raise ReadError('illegal read after last chunk')
         max_bytes = max_chunk_line_bytes
         if not self._chunk_size:
-            self._chunk_size, last_chunk = self._read_chunk_line(max_bytes)
+            self._chunk_size, last_chunk = self._read_chunk_line(max_bytes,
+                                                                 *args,
+                                                                 **kwargs)
             if last_chunk:
                 self._last_chunk_read = True
-                self._read_trailer(max_bytes)
+                self._read_trailer(max_bytes, *args, **kwargs)
                 return b''
         if self._chunk_size < count:
             count = self._chunk_size
-        data = self._read(count)
+        data = self._read(count, *args, **kwargs)
         if not data and count:
             raise ReadError('EOF in chunk')
         if data:
@@ -60,7 +64,8 @@ class ChunkedReader(DelimitedReader):
             if self._chunk_size < 0:
                 raise ReadError('read return more than the requested bytes')
             if not self._chunk_size:
-                no_data = self.read_until(b'\r\n', max_bytes=max_bytes)
+                no_data = self.read_until(b'\r\n', max_bytes=max_bytes, *args,
+                                          **kwargs)
                 if no_data:
                     raise ProtocolError('got data after end of chunk')
         return data
@@ -101,12 +106,12 @@ class ChunkedEncoder(object):
         del self._chunk_buf[:count]
         return data
 
-    def read(self, count):
+    def read(self, count, *args, **kwargs):
         if self._chunk_buf:
             return self._read_from_chunk_buf(count)
         if self._last_chunk:
             return b''
-        data = self._readable.read(self._preferred_chunk_size)
+        data = self._readable.read(self._preferred_chunk_size, *args, **kwargs)
         if not data:
             self._last_chunk = True
         self._fill_chunk_buf(data)

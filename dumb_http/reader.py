@@ -15,12 +15,12 @@ class BaseReader(object):
         self._readable = None
         readable.close()
 
-    def read(self, count):
+    def read(self, count, *args, **kwargs):
         if self._readable is None:
             raise ReadError('readable is None (already closed?)')
         if count < 0:
             raise ValueError('count must be non-negative')
-        return self._readable.read(count)
+        return self._readable.read(count, *args, **kwargs)
 
 
 class BufReader(BaseReader):
@@ -53,28 +53,29 @@ class BufReader(BaseReader):
     def append_buf(buf, buf_or_bytes):
         buf.extend(buf_or_bytes)
 
-    def read(self, count, ignore_buf=False):
+    def read(self, count, ignore_buf=False, *args, **kwargs):
         buf_len = len(self._buf)
         if buf_len and not ignore_buf:
             if count > buf_len:
                 count = buf_len
             return self.read_from_buf(self._buf, count)
-        return super(BufReader, self).read(count)
+        return super(BufReader, self).read(count, *args, **kwargs)
 
 
 class BufferedReader(BufReader):
-    def _fill_buf(self, count, bufsize):
+    def _fill_buf(self, count, bufsize, *args, **kwargs):
         count -= len(self._buf)
         while count > 0:
             if bufsize > count:
                 bufsize = count
-            data = super(BufferedReader, self).read(bufsize, ignore_buf=True)
+            data = super(BufferedReader, self).read(bufsize, ignore_buf=True,
+                                                    *args, **kwargs)
             if not data:
                 raise ReadError('early EOF')
             self.prepend_buf(self._buf, data)
             count -= len(data)
 
-    def read(self, count, bufsize=4096):
+    def read(self, count, bufsize=4096, *args, **kwargs):
         """Returns exactly count bytes.
 
         This might block. An early EOF results in a ReadError.
@@ -82,16 +83,16 @@ class BufferedReader(BufReader):
         bytes chunks (the last read might be smaller).
 
         """
-        self._fill_buf(count, bufsize)
+        self._fill_buf(count, bufsize, *args, **kwargs)
         return self.read_from_buf(self._buf, count)
 
 
 class DelimitedReader(BufReader):
-    def _read(self, bufsize):
-        return self.read(bufsize)
+    def _read(self, bufsize, *args, **kwargs):
+        return self.read(bufsize, *args, **kwargs)
 
     def read_until_iter(self, delimiter, bufsize=4096, discard=True,
-                        max_bytes=None):
+                        max_bytes=None, *args, **kwargs):
         off = -1
         delim_len = len(delimiter)
         bytes_read = 0
@@ -99,7 +100,7 @@ class DelimitedReader(BufReader):
         while off == -1:
             if len(search_buf) >= delim_len:
                 yield self.read_from_buf(search_buf, -(delim_len - 1))
-            data = self._read(bufsize)
+            data = self._read(bufsize, *args, **kwargs)
             if not data:
                 raise ReadError('early EOF (delimiter not read)')
             bytes_read += len(data)
@@ -114,10 +115,10 @@ class DelimitedReader(BufReader):
         yield data
 
     def read_until(self, delimiter, bufsize=4096, discard=True,
-                   max_bytes=None):
+                   max_bytes=None, *args, **kwargs):
         buf = self.makebuf()
         for data in self.read_until_iter(delimiter, bufsize, discard,
-                                         max_bytes):
+                                         max_bytes, *args, **kwargs):
             buf.extend(data)
         return self.read_from_buf(buf, len(buf))
 
