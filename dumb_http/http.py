@@ -76,12 +76,16 @@ class Request(object):
         self._dup_headers_use_last = dup_headers_use_last
         self._suppress_connect_error = suppress_connect_error
 
+    def _makefile(self, sock, *args, **kwargs):
+        # hmm we could probably drop our own buffered reader code...
+        sio = sock.makefile(*args, **kwargs)
+        sock.close()
+        return sio
+
     def _connect(self, address, sock_family, sock_type):
         sock = socket.socket(family=sock_family, type=sock_type)
         sock.connect(address)
-        # hmm we could probably drop our own buffered reader code...
-        sio = sock.makefile(mode='rwb', buffering=0)
-        sock.close()
+        sio = self._makefile(sock, mode='rwb', buffering=0)
         return sio
 
     def _host_from_address(self, address, sock_family):
@@ -136,6 +140,10 @@ class Request(object):
              sock_family=socket.AF_INET, sock_type=socket.SOCK_STREAM):
         return self._perform(b'POST', address, path, data, query, sock_family,
                              sock_type)
+
+    @classmethod
+    def factory(cls, *args, **kwargs):
+        return cls(*args, **kwargs)
 
 
 # uff... what a name
@@ -210,7 +218,7 @@ class ConnectionErrorResponse(object):
 
 
 def _perform(method, address, path, data, headers, query, encoding,
-             sock_family, sock_type):
+             sock_family, sock_type, request_factory):
     def encode(_data):
         if encoding is not None and hasattr(_data, 'encode'):
             return _data.encode(encoding)
@@ -226,20 +234,24 @@ def _perform(method, address, path, data, headers, query, encoding,
     encoded_query = {}
     for key, val in query.items():
         encoded_query[encode(key)] = encode(val)
-    req = Request(headers, dup_headers_use_last=True,
-                  suppress_connect_error=True)
+    if request_factory is None:
+        request_factory = Request.factory
+    req = request_factory(headers, dup_headers_use_last=True,
+                          suppress_connect_error=True)
     meth = getattr(req, method)
     return meth(address, path, data, query=encoded_query,
                 sock_family=sock_family, sock_type=sock_type)
 
 
 def get(address, path, data=None, headers=None, encoding='ascii',
-        sock_family=socket.AF_INET, sock_type=socket.SOCK_STREAM, **query):
+        sock_family=socket.AF_INET, sock_type=socket.SOCK_STREAM,
+        request_factory=None, **query):
     return _perform('get', address, path, data, headers, query, encoding,
-                    sock_family, sock_type)
+                    sock_family, sock_type, request_factory)
 
 
 def post(address, path, data=None, headers=None, encoding='ascii',
-         sock_family=socket.AF_INET, sock_type=socket.SOCK_STREAM, **query):
+         sock_family=socket.AF_INET, sock_type=socket.SOCK_STREAM,
+         request_factory=None, **query):
     return _perform('post', address, path, data, headers, query, encoding,
-                    sock_family, sock_type)
+                    sock_family, sock_type, request_factory)
