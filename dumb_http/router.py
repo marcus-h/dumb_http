@@ -70,9 +70,9 @@ class MatchDiagnostic(object):
         self._cur_messages.setdefault(level, []).append(msg)
 
     def _interested_in(self, matcher):
-        # we are only interested in a RegexQueryMatcher (subclasses
-        # can override this...)
-        return isinstance(matcher, RegexQueryMatcher)
+        # we are not interested in a RegexPathMatcher (subclasses
+        # can override this...) (it would be too noisy...)
+        return not isinstance(matcher, RegexPathMatcher)
 
 
 class AbstractMatcherBase(object):
