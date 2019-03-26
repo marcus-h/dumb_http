@@ -385,9 +385,8 @@ class RouteBinder(object):
 
 
 class RouterBasedHTTPServer(PeriodicServer):
-    def __init__(self, host, port, router, **server_options):
-        super(RouterBasedHTTPServer, self).__init__(port, host,
-                                                    **server_options)
+    def __init__(self, address, router, **server_options):
+        super(RouterBasedHTTPServer, self).__init__(address, **server_options)
         self._router = router
 
     def handle_request(self, sock):

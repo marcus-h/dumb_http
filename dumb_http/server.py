@@ -7,10 +7,12 @@ import errno
 
 
 class Server(object):
-    def __init__(self, port, host='', fork_on_accept=True):
+    def __init__(self, address, sock_family=socket.AF_INET,
+                 sock_type=socket.SOCK_STREAM, fork_on_accept=True):
         super(Server, self).__init__()
-        self._host = host
-        self._port = port
+        self._address = address
+        self._family = sock_family
+        self._type = sock_type
         self._fork_on_accept = fork_on_accept
 
     def _collect_children(self):
@@ -32,8 +34,7 @@ class Server(object):
     def run(self):
         # hmm too lazy to do a proper daemonize...
         self._daemonize()
-        kwargs = {'family': socket.AF_INET, 'type': socket.SOCK_STREAM}
-        with socket.socket(**kwargs) as sock:
+        with self._create_server_socket() as sock:
             self._configure_server_socket(sock)
             while True:
                 if self._has_pending_connection(sock):
@@ -47,9 +48,12 @@ class Server(object):
         # also docker/container stuff into account)
         pass
 
+    def _create_server_socket(self):
+        return socket.socket(family=self._family, type=self._type)
+
     def _configure_server_socket(self, sock):
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((self._host, self._port))
+        sock.bind(self._address)
         sock.listen()
 
     def _accept(self, sock):
@@ -74,8 +78,8 @@ class Server(object):
 
 
 class SelectServer(Server):
-    def __init__(self, port, host='', *args, timeout=None, **kwargs):
-        super(SelectServer, self).__init__(port, host, *args, **kwargs)
+    def __init__(self, address, *args, timeout=None, **kwargs):
+        super(SelectServer, self).__init__(address, *args, **kwargs)
         self._timeout = timeout
 
     def _calc_timeout(self):
@@ -153,8 +157,8 @@ class PeriodicServer(SelectServer):
     that does a (non-blocking) os.waitpid.
     """
 
-    def __init__(self, port, host='', *args, periodics=None, **kwargs):
-        super(PeriodicServer, self).__init__(port, host, *args, **kwargs)
+    def __init__(self, address, *args, periodics=None, **kwargs):
+        super(PeriodicServer, self).__init__(address, *args, **kwargs)
         if periodics is None:
             periodics = []
         else:
