@@ -91,17 +91,20 @@ class ControllerRouteBinder(RouteBinder):
 # this module (usually everything is bytes by default) - but using a default
 # encoding and str is more convenient for now
 def route(method_description, path_query_fragment_description,
-          encoding='utf-8'):
-    matchers = []
+          encoding='utf-8', matchers=None):
+    if matchers is not None:
+        matchers = list(matchers)
+    else:
+        matchers = []
     path = URI.parse_path(path_query_fragment_description, encoding=encoding)
     # for now a path must be present
     if path is None:
         raise ValueError('path required')
-    matchers.append(RegexPathMatcher(method_description, path,
-                                     encoding=encoding))
+    matchers.insert(0, RegexPathMatcher(method_description, path,
+                                        encoding=encoding))
     query = URI.parse_query(path_query_fragment_description, encoding=encoding)
     if query is not None:
-        matchers.append(RegexQueryMatcher(query, encoding=encoding))
+        matchers.insert(1, RegexQueryMatcher(query, encoding=encoding))
     route = Route(*matchers)
     return ControllerRouteBinder(route)
 
