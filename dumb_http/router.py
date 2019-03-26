@@ -325,15 +325,22 @@ class Router(object):
         super(Router, self).__init__()
         self._route_binders = route_binders
 
-    def route(self, sio):
-        return self._route(sio)
+    def _makefile(self, sock, *args, **kwargs):
+        return sock.makefile(*args, **kwargs)
 
-    def _route(self, sio):
+    def _create_rrrw(self, sio):
+        return RequestReaderResponseWriter(sio)
+
+    def route(self, sock):
+        with self._makefile(sock, 'rwb', buffering=0) as sio:
+            rrrw = self._create_rrrw(sio)
+            return self._route(rrrw)
+
+    def _route(self, rrrw):
         # XXX: hmm should we explicitly close the rrrw? (actually, so
         # far it only operates on the sio (which is closed by one of our
         # callers) - maybe it acquire more resources, which _have_ to
         # be closed in the future? Reconsider this.
-        rrrw = RequestReaderResponseWriter(sio)
         rrrw.request.read_request_line()
         rrrw.request.read_headers()
         diagnostic = MatchDiagnostic(rrrw.request)
@@ -385,6 +392,4 @@ class RouterBasedHTTPServer(PeriodicServer):
 
     def handle_request(self, sock):
         print('in handle_request')
-        # context manager closes the sio
-        with sock.makefile(mode='rwb', buffering=0) as sio:
-            return self._router.route(sio)
+        return self._router.route(sock)
