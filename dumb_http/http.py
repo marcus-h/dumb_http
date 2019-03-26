@@ -76,15 +76,22 @@ class Request(object):
         self._dup_headers_use_last = dup_headers_use_last
         self._suppress_connect_error = suppress_connect_error
 
-    def _connect(self, host, port):
-        sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
-        sock.connect((host, port))
+    def _connect(self, address, sock_family, sock_type):
+        sock = socket.socket(family=sock_family, type=sock_type)
+        sock.connect(address)
         # hmm we could probably drop our own buffered reader code...
         sio = sock.makefile(mode='rwb', buffering=0)
         sock.close()
         return sio
 
-    def _perform(self, method, host, path, data, port=80, query=None):
+    def _host_from_address(self, address, sock_family):
+        # for now, just a quick workaround
+        if sock_family == socket.AF_INET:
+            return address[0]
+        return address
+
+    def _perform(self, method, address, path, data, query=None,
+                 sock_family=socket.AF_INET, sock_type=socket.SOCK_STREAM):
         request_target = path
         if query:
             # hmm move to uri module
@@ -101,12 +108,13 @@ class Request(object):
         for field, value in self._headers.items():
             req.add_header(field, value)
         if req.get_header('Host', None) is None:
+            host = self._host_from_address(address, sock_family)
             req.add_header('Host', host)
         if req.get_header('Connection', None) is None:
             req.add_header('Connection', b'close')
         sio = None
         try:
-            sio = self._connect(host, port)
+            sio = self._connect(address, sock_family, sock_type)
             data = _prepare_data_message(req, data)
             req.write_body(sio, data)
         except ConnectionError as e:
@@ -119,11 +127,15 @@ class Request(object):
                   'suppress_connect_error': self._suppress_connect_error}
         return ConnectionErrorAwareReadOnlyHTTPResponse(sio, **kwargs)
 
-    def get(self, host, path, data=None, port=80, query=None):
-        return self._perform(b'GET', host, path, data, port, query)
+    def get(self, address, path, data=None, query=None,
+            sock_family=socket.AF_INET, sock_type=socket.SOCK_STREAM):
+        return self._perform(b'GET', address, path, data, query, sock_family,
+                             sock_type)
 
-    def post(self, host, path, data=None, port=80, query=None):
-        return self._perform(b'POST', host, path, data, port, query)
+    def post(self, address, path, data=None, query=None,
+             sock_family=socket.AF_INET, sock_type=socket.SOCK_STREAM):
+        return self._perform(b'POST', address, path, data, query, sock_family,
+                             sock_type)
 
 
 # uff... what a name
@@ -197,13 +209,18 @@ class ConnectionErrorResponse(object):
         raise ReadError('cannot read from unconnected response')
 
 
-def _perform(method, host, path, data, port, headers, query, encoding):
+def _perform(method, address, path, data, headers, query, encoding,
+             sock_family, sock_type):
     def encode(_data):
         if encoding is not None and hasattr(_data, 'encode'):
             return _data.encode(encoding)
         return _data
 
-    host = encode(host)
+    # hmm... reconsider this
+    if isinstance(address, (tuple, list)):
+        address = [encode(part) for part in address]
+    else:
+        address = encode(address)
     path = encode(path)
     data = encode(data)
     encoded_query = {}
@@ -212,14 +229,17 @@ def _perform(method, host, path, data, port, headers, query, encoding):
     req = Request(headers, dup_headers_use_last=True,
                   suppress_connect_error=True)
     meth = getattr(req, method)
-    return meth(host, path, data, port, query=encoded_query)
+    return meth(address, path, data, query=encoded_query,
+                sock_family=sock_family, sock_type=sock_type)
 
 
-def get(host, path, data=None, port=80, headers=None, encoding='ascii',
-        **query):
-    return _perform('get', host, path, data, port, headers, query, encoding)
+def get(address, path, data=None, headers=None, encoding='ascii',
+        sock_family=socket.AF_INET, sock_type=socket.SOCK_STREAM, **query):
+    return _perform('get', address, path, data, headers, query, encoding,
+                    sock_family, sock_type)
 
 
-def post(host, path, data=None, port=80, headers=None, encoding='ascii',
-         **query):
-    return _perform('post', host, path, data, port, headers, query, encoding)
+def post(address, path, data=None, headers=None, encoding='ascii',
+         sock_family=socket.AF_INET, sock_type=socket.SOCK_STREAM, **query):
+    return _perform('post', address, path, data, headers, query, encoding,
+                    sock_family, sock_type)
