@@ -331,8 +331,12 @@ class Router(object):
     def _create_rrrw(self, sio):
         return RequestReaderResponseWriter(sio)
 
-    def route(self, sock):
+    def route(self, sock, early_close=True):
         with self._makefile(sock, 'rwb', buffering=0) as sio:
+            if early_close:
+                # the underlying is socket is closed as soon as the
+                # sio is closed
+                sock.close()
             rrrw = self._create_rrrw(sio)
             return self._route(rrrw)
 
@@ -389,6 +393,6 @@ class RouterBasedHTTPServer(PeriodicServer):
         super(RouterBasedHTTPServer, self).__init__(address, **server_options)
         self._router = router
 
-    def handle_request(self, sock):
+    def handle_request(self, sock, early_close=True):
         print('in handle_request')
-        return self._router.route(sock)
+        return self._router.route(sock, early_close=early_close)
