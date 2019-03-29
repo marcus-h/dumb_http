@@ -226,7 +226,7 @@ def _perform(method, address, path, data, headers, query, encoding,
 
     # hmm... reconsider this
     if isinstance(address, (tuple, list)):
-        address = [encode(part) for part in address]
+        address = tuple(encode(part) for part in address)
     else:
         address = encode(address)
     path = encode(path)
