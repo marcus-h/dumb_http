@@ -27,6 +27,25 @@ def _prepare_data_message(message, data):
     return data
 
 
+# XXX: uuarghs... fix this mess
+def reply(sio, status=None, data=None, reason=b'unspec', close=True,
+          response=None, **headers):
+    # encoding...
+    if response is None:
+        if status is None:
+            status = 500  # hrm usage error...
+        response = WriteOnlyHTTPResponse(status, reason)
+        for field, value in headers.items():
+            response.add_header(field, value)
+        data = _prepare_data_message(response, data)
+    response.write_body(sio, data)
+    if status == 100:
+        close = False
+    if close:
+        sio.close()
+    return response
+
+
 class RequestReaderResponseWriter(object):
     def __init__(self, sio, close=True):
         super(RequestReaderResponseWriter, self).__init__()
@@ -35,25 +54,17 @@ class RequestReaderResponseWriter(object):
         self._response = None
         self._close = close
 
-    # XXX: uuarghs... fix this mess
     def reply(self, status=None, data=None, reason=b'unspec', close=None,
               **headers):
         if close is None:
             close = self._close
-        # encoding...
-        if self._response is None:
-            if status is None:
-                status = 500  # hrm usage error...
-            response = WriteOnlyHTTPResponse(status, reason)
-            for field, value in headers.items():
-                response.add_header(field, value)
-            data = _prepare_data_message(response, data)
-            self._response = response
-        self._response.write_body(self.request._sio, data)  # XXX: sio
+        sio = self.request._sio  # XXX: sio
+        self._response = reply(sio, status, data, reason, close,
+                               self._response, **headers)
         if status == 100:
             self._response = None
-            close = False
-        if close:
+        if sio.closed:
+            # subclasses might do something useful in close in the future
             self.close()
 
     def read(self, count):
