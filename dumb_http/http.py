@@ -132,7 +132,7 @@ class Request(object):
             sio = self._connect(address, sock_family, sock_type)
             data = _prepare_data_message(req, data)
             req.write_body(sio, data)
-        except ConnectionError as e:
+        except (ConnectionError, socket.gaierror) as e:
             if sio is not None:
                 sio.close()
             if not self._suppress_connect_error:
