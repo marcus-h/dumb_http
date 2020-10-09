@@ -226,6 +226,6 @@ if __name__ == '__main__':
     #
     periodics = [Periodic(30, PeriodicHandler1()),
                  Periodic(10, periodic_handler2)]
-    rt_srv = RouterBasedHTTPServer('localhost', 3000, ROUTER,
+    rt_srv = RouterBasedHTTPServer(('localhost', 3000), ROUTER,
                                    periodics=periodics)
     rt_srv.run()
